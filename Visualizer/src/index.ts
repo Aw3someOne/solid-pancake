@@ -50,14 +50,16 @@ if (opts.secondary) {
 
     const elapsedMSMeasure = new Section(elapsedMS, {
         Measure: 'Calc',
-        Formula: `(${timeMeasure.name} + 1) * 1000`
+        Formula: `(${timeMeasure.name} + 1) * 1000`,
     });
 
     sections.push(elapsedMSMeasure);
 }
 
 for (let i = 0; i < opts.bands; i++) {
-    const bandMeasure = new Section(`Band${i}Measure`, {
+    const bandNumber = `Band${i}`;
+
+    const bandMeasure = new Section(`${bandNumber}Measure`, {
         Measure: 'Plugin',
         Plugin: 'AudioLevel',
         Parent: 'AudioLevelMeasure',
@@ -69,7 +71,7 @@ for (let i = 0; i < opts.bands; i++) {
 
     const color = interpolateCool(i / opts.bands);
     const result =  normalizeColorString(color);
-    const bandMeter = new Section(`Band${i}Meter`, {
+    const bandMeter = new Section(`${bandNumber}Meter`, {
         Meter: 'Bar',
         MeasureName: bandMeasure.name,
         MeterStyle: 'VisualizerBarStyle',
@@ -82,24 +84,31 @@ for (let i = 0; i < opts.bands; i++) {
         continue;
     }
 
-    const secondaryMeasure = new Section(`Band${i}SMeasure`);
+    const secondaryMeasure = new Section(`${bandNumber}SMeasure`);
     const decay = 0.01;
     const timerName = `${secondaryMeasure.name}Timer`;
-    const deltaTime = `(#${timerName}# - ${elapsedMS})`;
+    const deltaTime = `Min(${elapsedMS} - #${timerName}#, 5000)`;
+    const timeFactor = `${decay} / 1000000 * (${deltaTime} ** 2)`;
+
+    // const dynamic = `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${timeFactor} : [${bandMeasure.name}]`;
+    // const kinematic = `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${decay} : [${bandMeasure.name}]`;
+    // const fixed = `[${bandMeasure.name}]`;
+    const dynamic = `[${secondaryMeasure.name}] - ${timeFactor}`;
+    const kinematic = `[${secondaryMeasure.name}] - ${decay}`;
+    const fixed = `[${bandMeasure.name}]`;
+
     secondaryMeasure.merge({
         Measure: 'Calc',
-        // Formula: `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${decay} * ${deltaTime} * ${deltaTime} : [${bandMeasure.name}]`,
-        Formula: `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${decay} : [${bandMeasure.name}]`,
-        // Formula: `[${bandMeasure.name}]`,
+        Formula: `Max(${dynamic}, [${bandMeasure.name}])`,
         DynamicVariables: 1,
-        IfCondition1: `${secondaryMeasure.name} > [${bandMeasure.name}]`,
-        IfFalseAction1: `!SetVariable ${timerName} [${elapsedMS}]`,
+        IfCondition: `${secondaryMeasure.name} > ${bandMeasure.name}`,
+        IfFalseAction: `[!SetVariable ${timerName} [${elapsedMS}]]`,
     });
 
     variables.set(timerName, 0);
     sections.push(secondaryMeasure);
 
-    const secondaryMeter = new Section(`Band${i}SMeter`, {
+    const secondaryMeter = new Section(`${bandNumber}SMeter`, {
         Meter: 'Image',
         MeterStyle: 'SecondaryBarStyle',
         Y: `((1-[${secondaryMeasure.name}]) * #BarHeight#+#VERTICAL_INSETS#-#BARBHEIGHT#)`,
