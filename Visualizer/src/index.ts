@@ -1,7 +1,9 @@
+import chalk from 'chalk';
+import { exec } from 'child_process';
 import { Command } from 'commander';
+import { interpolateCool } from 'd3-scale-chromatic';
 import fs from 'fs';
 import { EOL } from 'os';
-import { interpolateCool } from 'd3-scale-chromatic';
 import { normalizeColorString } from './color';
 import { Section } from './Section';
 
@@ -13,10 +15,12 @@ const program = new Command();
 program
     .option('-b, --bands <number>', 'number of bands', myParseInt, 8)
     .option('-s, --secondary', 'enable secondary decaying', false)
+    .option('-r, --refresh', 'attempt to refresh skin', false)
     .parse(process.argv);
 
 interface Options {
     bands: number;
+    refresh: boolean;
     secondary: boolean;
 }
 
@@ -65,6 +69,7 @@ for (let i = 0; i < opts.bands; i++) {
         Parent: 'AudioLevelMeasure',
         Type: 'Band',
         BandIdx: i,
+        Group: 'Audio',
     });
 
     sections.push(bandMeasure);
@@ -103,6 +108,7 @@ for (let i = 0; i < opts.bands; i++) {
         DynamicVariables: 1,
         IfCondition: `${secondaryMeasure.name} > ${bandMeasure.name}`,
         IfFalseAction: `[!SetVariable ${timerName} [${elapsedMS}]]`,
+        Group: 'Audio',
     });
 
     variables.set(timerName, 0);
@@ -120,3 +126,15 @@ for (let i = 0; i < opts.bands; i++) {
 sections.forEach(writeSection);
 
 writeStream.close();
+console.log(chalk.cyan(`${writeStream.path} written`));
+
+if (opts.refresh) {
+    const cmd = '"%PROGRAMFILES%\\Rainmeter\\Rainmeter.exe" !Refresh SystemMonitor\\Visualizer';
+    exec(cmd, (error, stdout, stderr) => {
+        if (error) {
+            console.error(error);
+            return;
+        }
+        console.log(chalk.green('Skin refreshed'));
+    });
+}
