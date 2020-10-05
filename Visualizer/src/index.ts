@@ -14,14 +14,15 @@ function myParseInt(value: string, _prev: number) {
 const program = new Command();
 program
     .option('-b, --bands <number>', 'number of bands', myParseInt, 8)
-    .option('-s, --secondary', 'enable secondary decaying', false)
+    .option('-s, --secondary <type | false>', 'enable secondary decaying', false)
     .option('-r, --refresh', 'attempt to refresh skin', false)
     .parse(process.argv);
 
 interface Options {
     bands: number;
+    output: string;
     refresh: boolean;
-    secondary: boolean;
+    secondary: 'kinematic' | 'dynamic' | false;
 }
 
 const opts = program.opts() as Options;
@@ -36,7 +37,7 @@ const writeSection = (section: Section) => {
     section.entries().forEach(([key, value]) => {
         writeLine(`${key}=${value}`);
     });
-}
+};
 
 const sections: Section[] = [];
 
@@ -75,7 +76,7 @@ for (let i = 0; i < opts.bands; i++) {
     sections.push(bandMeasure);
 
     const color = interpolateCool(i / opts.bands);
-    const result =  normalizeColorString(color);
+    const result = normalizeColorString(color);
     const bandMeter = new Section(`${bandNumber}Meter`, {
         Meter: 'Bar',
         MeasureName: bandMeasure.name,
@@ -95,16 +96,23 @@ for (let i = 0; i < opts.bands; i++) {
     const deltaTime = `Min(${elapsedMS} - #${timerName}#, 5000)`;
     const timeFactor = `${decay} / 1000000 * (${deltaTime} ** 2)`;
 
-    // const dynamic = `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${timeFactor} : [${bandMeasure.name}]`;
-    // const kinematic = `[${secondaryMeasure.name}] > [${bandMeasure.name}] ? [${secondaryMeasure.name}] - ${decay} : [${bandMeasure.name}]`;
-    // const fixed = `[${bandMeasure.name}]`;
-    const dynamic = `[${secondaryMeasure.name}] - ${timeFactor}`;
-    const kinematic = `[${secondaryMeasure.name}] - ${decay}`;
     const fixed = `[${bandMeasure.name}]`;
+    const kinematic = `[${secondaryMeasure.name}] - ${decay}`;
+    const dynamic = `[${secondaryMeasure.name}] - ${timeFactor}`;
+
+    let Formula = fixed;
+    switch (opts.secondary) {
+    case 'kinematic':
+        Formula = `Max(${kinematic}, [${bandMeasure.name}])`;
+        break;
+    case 'dynamic':
+        Formula = `Max(${dynamic}, [${bandMeasure.name}])`;
+        break;
+    }
 
     secondaryMeasure.merge({
         Measure: 'Calc',
-        Formula: `Max(${dynamic}, [${bandMeasure.name}])`,
+        Formula,
         DynamicVariables: 1,
         IfCondition: `${secondaryMeasure.name} > ${bandMeasure.name}`,
         IfFalseAction: `[!SetVariable ${timerName} [${elapsedMS}]]`,
@@ -130,7 +138,7 @@ console.log(chalk.cyan(`${writeStream.path} written`));
 
 if (opts.refresh) {
     const cmd = '"%PROGRAMFILES%\\Rainmeter\\Rainmeter.exe" !Refresh SystemMonitor\\Visualizer';
-    exec(cmd, (error, stdout, stderr) => {
+    exec(cmd, (error, _stdout, _stderr) => {
         if (error) {
             console.error(error);
             return;

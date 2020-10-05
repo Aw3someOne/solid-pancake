@@ -35,4 +35,4 @@ function hexify(rgb: [number, number, number]): string {
     return '0x' + rgb.map(d => d.toString(16)).join('');
 }
 
-export const normalizeColorString = (value: string) => hexify(parseString(value));
+export const normalizeColorString = (value: string): string => hexify(parseString(value));
